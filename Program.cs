@@ -1,18 +1,38 @@
-var builder = WebApplication.CreateBuilder(args);
+using NLog;
+using NLog.Web;
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
+var logger = LogManager.Setup()
+    .LoadConfigurationFromFile("NLog.config")
+    .GetCurrentClassLogger();
 
-var app = builder.Build();
-
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+try
 {
-    app.MapOpenApi();
-}
+    logger.Debug("Starting application...");
 
-app.UseHttpsRedirection();
+    var builder = WebApplication.CreateBuilder(args);
+
+    // Remove default logging providers
+    builder.Logging.ClearProviders();
+    builder.Host.UseNLog();
+
+    // Add services
+    builder.Services.AddControllers();
+    builder.Services.AddEndpointsApiExplorer();
+    builder.Services.AddSwaggerGen();
+
+    var app = builder.Build();
+
+    if (app.Environment.IsDevelopment())
+    {
+        app.UseSwagger();
+        app.UseSwaggerUI();
+    }
+
+    app.UseHttpsRedirection();
+
+    app.UseAuthorization();
+
+    app.MapControllers();
 
 var summaries = new[]
 {
@@ -33,7 +53,17 @@ app.MapGet("/weatherforecast", () =>
 })
 .WithName("GetWeatherForecast");
 
-app.Run();
+    app.Run();
+}
+catch (Exception ex)
+{
+    logger.Error(ex, "Application stopped due to an exception");
+    throw;
+}
+finally
+{
+    LogManager.Shutdown();
+}
 
 record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
 {
